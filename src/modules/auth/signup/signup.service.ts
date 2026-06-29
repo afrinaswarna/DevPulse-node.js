@@ -1,9 +1,10 @@
 import bcrypt from "bcryptjs"
 import { pool } from "../../../db"
+import type { User } from "./signup.interface"
 
 
 
-const registerUserIntoDB = async(payLoad :any)=>{
+const registerUserIntoDB = async(payLoad :User)=>{
     const {name,email,password,role} = payLoad
     const hashPassword = await bcrypt.hash(password,10)
 
@@ -12,6 +13,8 @@ const registerUserIntoDB = async(payLoad :any)=>{
         `,[name,email,hashPassword,role])
 
     delete result.rows[0].password
+
+    console.log(result);
     return result    
 
 
