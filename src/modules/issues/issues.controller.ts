@@ -2,24 +2,51 @@ import type { Request, Response } from "express";
 import { issuesService } from "./issues.service";
 
 
-const createIssues = async(req:Request,res:Response)=>{
-    // try {
+const createIssues = async (req: Request, res: Response) => {
+  const user = req.user;
+  const result = await issuesService.createIssuesIntoDB(req.body, user);
+  try {
+    res.status(201).json({
+      success: true,
+      message: "Issue created successfully",
+      data: result.rows[0],
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+      error: error,
+    });
+  }
+};
+const getSingleIssue = async (req: Request, res: Response) => {
+  const { id } = req.params;
 
-        
+  try {
+    const result = await issuesService.getSingleIssueFromDB(id as string);
+    // console.log(result);
 
-    //      res.status(201).json({
-    //         success:true,
-    //         message:"Issue created successfully",
-    //         data:result
-    // } )}catch (error:any) {
-    //     res.status(500).json({
-    //         success:false,
-    //         message:error.message,
-    //         error:error
-    //     })
-    // }
-}
+    if (!result) {
+      return res.status(404).json({
+        success: false,
+        message: "Issue not found",
+      });
+    }
 
-export const issuesController={
-    createIssues
-}
+    res.status(201).json({
+      success: true,
+      message: "Issues retrived successfully",
+      data: result,
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+      error: error,
+    });
+  }
+};
+export const issuesController = {
+  createIssues,
+  getSingleIssue,
+};
