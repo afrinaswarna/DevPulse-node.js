@@ -1,5 +1,7 @@
-import { signupController } from "./../auth/signup/signup.controller";
+
 import { pool } from "../../db";
+import type { ROLES } from "../../types";
+
 
 const createIssuesIntoDB = async (payLoad: any, user: any) => {
   const { title, description, type, status } = payLoad;
@@ -13,6 +15,8 @@ const createIssuesIntoDB = async (payLoad: any, user: any) => {
 
   return result;
 };
+
+
 const getSingleIssueFromDB = async (id: string) => {
   const issueResult = await pool.query(
     `
@@ -49,7 +53,55 @@ const getSingleIssueFromDB = async (id: string) => {
   return formattedIssue;
 };
 
+
+const updateIssueIntoDB = async (payLoad: any, id: string, user: any) => {
+    const { title, description, type } = payLoad;
+
+   
+    const issueResult = await pool.query(
+        `SELECT * FROM issues WHERE id = $1`, 
+        [id]
+    );
+    
+    const issue = issueResult.rows[0];
+    
+    
+    if (!issue) {
+        throw new Error("Issue not found"); 
+    }
+
+    const reporterId = issue.reporter_id;
+    const status = issue.status;
+
+    
+    const isMaintainer = user.role === 'maintainer';
+    const isOwner = reporterId === user.id; 
+    const isOpen = status === 'open';
+
+    if (isMaintainer || (user.role === 'contributor' && isOwner && isOpen)) {
+        
+       
+        const result = await pool.query(`
+            UPDATE issues SET
+                title = COALESCE($1, title),
+                description = COALESCE($2, description),
+                type = COALESCE($3, type),
+                status = COALESCE($4, status),
+                updated_at = NOW() 
+            WHERE id = $5 
+            RETURNING *
+        `, [title, description, type,'in_progress', id]);
+
+       
+        return result
+    } else {
+        throw new Error("Unauthorized to update this issue");
+    }
+};
+
+
 export const issuesService = {
   createIssuesIntoDB,
   getSingleIssueFromDB,
-};
+  updateIssueIntoDB
+}
