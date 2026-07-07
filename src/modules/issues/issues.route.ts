@@ -7,5 +7,6 @@ const router = Router()
 router.post('/',auth(USER_ROLE.contributor,USER_ROLE.maintainer),issuesController.createIssues)
 router.get('/:id',issuesController.getSingleIssue)
 router.patch('/:id',auth(USER_ROLE.contributor,USER_ROLE.maintainer),issuesController.updateIssue)
+router.delete('/:id',auth(USER_ROLE.contributor,USER_ROLE.maintainer),issuesController.deleteIssus)
 
 export const issuesRoute = router 

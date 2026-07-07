@@ -1,5 +1,6 @@
 import type { Request, Response } from "express";
 import { issuesService } from "./issues.service";
+import type { JwtHeader, JwtPayload } from "jsonwebtoken";
 
 
 const createIssues = async (req: Request, res: Response) => {
@@ -35,7 +36,7 @@ const getSingleIssue = async (req: Request, res: Response) => {
 
     res.status(201).json({
       success: true,
-      message: "Issues retrived successfully",
+      message: "Issue retrived successfully",
       data: result,
     });
   } catch (error: any) {
@@ -56,7 +57,7 @@ const updateIssue = async(req:Request,res:Response)=>{
 
          res.status(201).json({
       success: true,
-      message: "Issues updated successfully",
+      message: "Issue updated successfully",
       data: result.rows[0]
     });
 
@@ -70,8 +71,33 @@ const updateIssue = async(req:Request,res:Response)=>{
         
     }
 }
+
+
+const deleteIssus = async(req:Request, res:Response)=>{
+
+  const {id} = req.params
+  const user = req.user
+  // console.log(user);
+  try {
+    const result = await issuesService.deleteIssueFromDB(id as string, user)
+    
+      res.status(200).json({
+      success: true,
+      message: "Issue deleted successfully",
+      
+    
+  })} catch (error:any) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+      error: error,
+    });
+    
+  }
+}
 export const issuesController = {
   createIssues,
   getSingleIssue,
-  updateIssue
+  updateIssue,
+  deleteIssus
 };

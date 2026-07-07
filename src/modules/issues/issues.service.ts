@@ -1,4 +1,5 @@
 
+import type { JwtPayload } from "jsonwebtoken";
 import { pool } from "../../db";
 import type { ROLES } from "../../types";
 
@@ -54,10 +55,10 @@ const getSingleIssueFromDB = async (id: string) => {
 };
 
 
-const updateIssueIntoDB = async (payLoad: any, id: string, user: any) => {
+const updateIssueIntoDB = async (payLoad: any, id: string, user :any) => {
     const { title, description, type } = payLoad;
 
-   
+  //  console.log(user);
     const issueResult = await pool.query(
         `SELECT * FROM issues WHERE id = $1`, 
         [id]
@@ -71,14 +72,23 @@ const updateIssueIntoDB = async (payLoad: any, id: string, user: any) => {
     }
 
     const reporterId = issue.reporter_id;
-    const status = issue.status;
+    const currentStatus = issue.status;
 
     
     const isMaintainer = user.role === 'maintainer';
     const isOwner = reporterId === user.id; 
-    const isOpen = status === 'open';
+    const isOpen = currentStatus === 'open';
 
     if (isMaintainer || (user.role === 'contributor' && isOwner && isOpen)) {
+      let nextStatus = currentStatus; 
+
+        if (currentStatus === 'open') {
+            nextStatus = 'in_progress';
+        } else if (currentStatus === 'in_progress') {
+            nextStatus = 'resolved';
+        } else if (currentStatus === 'resolved') {
+            throw new Error("Cannot update an issue that is already resolved");
+        }
         
        
         const result = await pool.query(`
@@ -90,7 +100,7 @@ const updateIssueIntoDB = async (payLoad: any, id: string, user: any) => {
                 updated_at = NOW() 
             WHERE id = $5 
             RETURNING *
-        `, [title, description, type,'in_progress', id]);
+        `, [title, description, type,nextStatus, id]);
 
        
         return result
@@ -100,8 +110,40 @@ const updateIssueIntoDB = async (payLoad: any, id: string, user: any) => {
 };
 
 
+const deleteIssueFromDB = async(id:string, user:any)=>{
+  
+ const issueResult = await pool.query(
+        `SELECT * FROM issues WHERE id = $1`, 
+        [id]
+    );
+    
+    const issue = issueResult.rows[0];
+    
+    
+    if (!issue) {
+        throw new Error("Issue not found"); 
+    }
+ const isMaintainer = user.role === 'maintainer';
+
+ if(isMaintainer){
+  const result = await pool.query(`
+    DELETE FROM issues WHERE id=$1 
+    
+    `,[id])
+    return result
+ }
+ else {
+        throw new Error("Unauthorized to delete this issue");
+    }
+
+
+
+}
+
+
 export const issuesService = {
   createIssuesIntoDB,
   getSingleIssueFromDB,
-  updateIssueIntoDB
+  updateIssueIntoDB,
+  deleteIssueFromDB
 }
