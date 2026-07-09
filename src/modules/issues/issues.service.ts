@@ -1,7 +1,7 @@
 
-import type { JwtPayload } from "jsonwebtoken";
+
 import { pool } from "../../db";
-import type { ROLES } from "../../types";
+
 
 
 const createIssuesIntoDB = async (payLoad: any, user: any) => {
@@ -17,7 +17,88 @@ const createIssuesIntoDB = async (payLoad: any, user: any) => {
   return result;
 };
 
+const getAllIssuesFromDB=async(queryParams:{sort?:string,type?:string,status?:string})=>{
 
+    const {sort,type,status} = queryParams
+
+    const queryValue : any[] = [];
+    const whereConditions: string[] = [];
+
+    if(type){
+        queryValue.push(type)
+        whereConditions.push(`type = $${queryValue.length}`)
+    }
+
+    if(status){
+        queryValue.push(status)
+        whereConditions.push(`status = $${queryValue.length}`)
+    }
+
+   let queryText = `SELECT * FROM issues`
+
+    if(whereConditions.length>0){
+         queryText += ` WHERE ` + whereConditions.join(' AND ')
+    }
+
+    let orderByClause = ' ORDER BY created_at DESC'
+
+    if(sort === 'oldest'){
+        orderByClause = ' ORDER BY created_at ASC'
+    }
+
+    queryText += orderByClause
+
+    
+
+    const result = await pool.query(queryText,queryValue)
+    const issues = result.rows
+    if(issues.length === 0){
+        return []
+    }
+    // extract unique reporter IDs  from the  fetched issues
+    const reporterIds = [...new Set(issues.map(issue => issue.reporter_id).filter(Boolean))]
+    
+    let userMap: {[key:number]: any} = {}
+
+    if(reporterIds.length >0){
+        // batch fetch all unique users in ONE query using `=ANY ($1)`
+
+        const userQueryText = `
+        SELECT id, name, role FROM users WHERE id = ANY($1)
+        `;
+        const userResult = await pool.query(userQueryText,[reporterIds])
+        
+        // convert the array of users into an object/map for quick 0(1) lookups
+        userMap = userResult.rows.reduce((acc,user)=>{
+            acc[user.id] = user;
+            return acc;
+
+        },{} as any)
+        
+        // userMap = {
+        //               1: {id:1,name:"afrina",role:"maintainer"},
+        //               2: {id:2,name:"swarna2",role:"contributor"},
+        //               3:  {id:3,name:"swarna3",role:"contributor"}                                       
+        //            }                                    
+
+        const formattedIssues = issues.map(issue=>{
+            return {
+                id:issue.id,
+                title:issue.title,
+                description:issue.description,
+                type:issue.type,
+                status:issue.status,
+                //attach the matched reporter object, or null if not found
+                reporter:userMap[issue.reporter_id] || null,  // userMap[1] = {id:1,name:"afrina",role:"maintainer"}
+                created_at:issue.created_at,
+                updated_at:issue.updated_at
+            }
+        })
+        return formattedIssues
+    }
+    
+
+}
 const getSingleIssueFromDB = async (id: string) => {
   const issueResult = await pool.query(
     `
@@ -58,7 +139,7 @@ const getSingleIssueFromDB = async (id: string) => {
 const updateIssueIntoDB = async (payLoad: any, id: string, user :any) => {
     const { title, description, type } = payLoad;
 
-  //  console.log(user);
+  
     const issueResult = await pool.query(
         `SELECT * FROM issues WHERE id = $1`, 
         [id]
@@ -143,6 +224,7 @@ const deleteIssueFromDB = async(id:string, user:any)=>{
 
 export const issuesService = {
   createIssuesIntoDB,
+  getAllIssuesFromDB,
   getSingleIssueFromDB,
   updateIssueIntoDB,
   deleteIssueFromDB

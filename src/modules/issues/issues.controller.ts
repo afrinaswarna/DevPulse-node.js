@@ -1,7 +1,6 @@
 import type { Request, Response } from "express";
 import { issuesService } from "./issues.service";
-import type { JwtHeader, JwtPayload } from "jsonwebtoken";
-
+import type { JwtPayload } from "jsonwebtoken";
 
 const createIssues = async (req: Request, res: Response) => {
   const user = req.user;
@@ -20,12 +19,28 @@ const createIssues = async (req: Request, res: Response) => {
     });
   }
 };
+const getAllIssues = async (req: Request, res: Response) => {
+  try {
+    const result = await issuesService.getAllIssuesFromDB(req.query);
+
+    res.status(200).json({
+      success: true,
+      message: "Issues retrieved successfully",
+      data: result,
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+      error: error,
+    });
+  }
+};
 const getSingleIssue = async (req: Request, res: Response) => {
   const { id } = req.params;
 
   try {
     const result = await issuesService.getSingleIssueFromDB(id as string);
-    // console.log(result);
 
     if (!result) {
       return res.status(404).json({
@@ -34,9 +49,9 @@ const getSingleIssue = async (req: Request, res: Response) => {
       });
     }
 
-    res.status(201).json({
+    res.status(200).json({
       success: true,
-      message: "Issue retrived successfully",
+      message: "Issue retrieved successfully",
       data: result,
     });
   } catch (error: any) {
@@ -48,56 +63,53 @@ const getSingleIssue = async (req: Request, res: Response) => {
   }
 };
 
-const updateIssue = async(req:Request,res:Response)=>{
-    const {id} = req.params
-    const user = req.user
-    try {
-        const result = await issuesService.updateIssueIntoDB(req.body,id as string,user)
-        // console.log("controller",result);
+const updateIssue = async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const user = req.user;
+  try {
+    const result = await issuesService.updateIssueIntoDB(
+      req.body,
+      id as string,
+      user,
+    );
 
-         res.status(201).json({
+    res.status(200).json({
       success: true,
       message: "Issue updated successfully",
-      data: result.rows[0]
+      data: result.rows[0],
     });
-
-        
-    } catch (error:any) {
-        res.status(500).json({
-      success: false,
-      message: error.message,
-      error: error,
-    });
-        
-    }
-}
-
-
-const deleteIssus = async(req:Request, res:Response)=>{
-
-  const {id} = req.params
-  const user = req.user
-  // console.log(user);
-  try {
-    const result = await issuesService.deleteIssueFromDB(id as string, user)
-    
-      res.status(200).json({
-      success: true,
-      message: "Issue deleted successfully",
-      
-    
-  })} catch (error:any) {
+  } catch (error: any) {
     res.status(500).json({
       success: false,
       message: error.message,
       error: error,
     });
-    
   }
-}
+};
+
+const deleteIssus = async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const user = req.user;
+  // console.log(user);
+  try {
+    const result = await issuesService.deleteIssueFromDB(id as string, user);
+
+    res.status(200).json({
+      success: true,
+      message: "Issue deleted successfully",
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+      error: error,
+    });
+  }
+};
 export const issuesController = {
   createIssues,
+  getAllIssues,
   getSingleIssue,
   updateIssue,
-  deleteIssus
+  deleteIssus,
 };
