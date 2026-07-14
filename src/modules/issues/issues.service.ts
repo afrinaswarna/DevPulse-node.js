@@ -1,104 +1,106 @@
-
-
+import type { JwtPayload } from "jsonwebtoken";
 import { pool } from "../../db";
+import type { issuePayLoad } from "./issues.interface";
 
-
-
-const createIssuesIntoDB = async (payLoad: any, user: any) => {
+const createIssuesIntoDB = async (payLoad: issuePayLoad, user : JwtPayload) => {
   const { title, description, type, status } = payLoad;
   const { id } = user;
-  const result = await pool.query(
-    `
+  try {
+    const result = await pool.query(
+      `
             INSERT INTO issues (title,description,type,status,reporter_id) VALUES ($1,$2,$3,COALESCE($4,'open'),$5) RETURNING *
             `,
-    [title, description, type, status, id],
-  );
+      [title, description, type, status, id],
+    );
 
-  return result;
+    return result;
+  } catch (error) {
+    throw new Error("You have already created an issue with this exact title.");
+  }
 };
 
-const getAllIssuesFromDB=async(queryParams:{sort?:string,type?:string,status?:string})=>{
+const getAllIssuesFromDB = async (queryParams: {
+  sort?: string;
+  type?: string;
+  status?: string;
+}) => {
+  const { sort, type, status } = queryParams;
 
-    const {sort,type,status} = queryParams
+  const queryValue: any[] = [];
+  const whereConditions: string[] = [];
 
-    const queryValue : any[] = [];
-    const whereConditions: string[] = [];
+  if (type) {
+    queryValue.push(type);
+    whereConditions.push(`type = $${queryValue.length}`);
+  }
 
-    if(type){
-        queryValue.push(type)
-        whereConditions.push(`type = $${queryValue.length}`)
-    }
+  if (status) {
+    queryValue.push(status);
+    whereConditions.push(`status = $${queryValue.length}`);
+  }
 
-    if(status){
-        queryValue.push(status)
-        whereConditions.push(`status = $${queryValue.length}`)
-    }
+  let queryText = `SELECT * FROM issues`;
 
-   let queryText = `SELECT * FROM issues`
+  if (whereConditions.length > 0) {
+    queryText += ` WHERE ` + whereConditions.join(" AND ");
+  }
 
-    if(whereConditions.length>0){
-         queryText += ` WHERE ` + whereConditions.join(' AND ')
-    }
+  let orderByClause = " ORDER BY created_at DESC";
 
-    let orderByClause = ' ORDER BY created_at DESC'
+  if (sort === "oldest") {
+    orderByClause = " ORDER BY created_at ASC";
+  }
 
-    if(sort === 'oldest'){
-        orderByClause = ' ORDER BY created_at ASC'
-    }
+  queryText += orderByClause;
 
-    queryText += orderByClause
+  const result = await pool.query(queryText, queryValue);
+  const issues = result.rows;
+  if (issues.length === 0) {
+    return [];
+  }
+  // extract unique reporter IDs  from the  fetched issues
+  const reporterIds = [
+    ...new Set(issues.map((issue) => issue.reporter_id).filter(Boolean)),
+  ];
 
-    
+  let userMap: { [key: number]: any } = {};
 
-    const result = await pool.query(queryText,queryValue)
-    const issues = result.rows
-    if(issues.length === 0){
-        return []
-    }
-    // extract unique reporter IDs  from the  fetched issues
-    const reporterIds = [...new Set(issues.map(issue => issue.reporter_id).filter(Boolean))]
-    
-    let userMap: {[key:number]: any} = {}
+  if (reporterIds.length > 0) {
+    // batch fetch all unique users in ONE query using `=ANY ($1)`
 
-    if(reporterIds.length >0){
-        // batch fetch all unique users in ONE query using `=ANY ($1)`
-
-        const userQueryText = `
+    const userQueryText = `
         SELECT id, name, role FROM users WHERE id = ANY($1)
         `;
-        const userResult = await pool.query(userQueryText,[reporterIds])
-        
-        // convert the array of users into an object/map for quick 0(1) lookups
-        userMap = userResult.rows.reduce((acc,user)=>{
-            acc[user.id] = user;
-            return acc;
+    const userResult = await pool.query(userQueryText, [reporterIds]);
 
-        },{} as any)
-        
-        // userMap = {
-        //               1: {id:1,name:"afrina",role:"maintainer"},
-        //               2: {id:2,name:"swarna2",role:"contributor"},
-        //               3:  {id:3,name:"swarna3",role:"contributor"}                                       
-        //            }                                    
+    // convert the array of users into an object/map for quick 0(1) lookups
+    userMap = userResult.rows.reduce((acc, user) => {
+      acc[user.id] = user;
+      return acc;
+    }, {} as any);
 
-        const formattedIssues = issues.map(issue=>{
-            return {
-                id:issue.id,
-                title:issue.title,
-                description:issue.description,
-                type:issue.type,
-                status:issue.status,
-                //attach the matched reporter object, or null if not found
-                reporter:userMap[issue.reporter_id] || null,  // userMap[1] = {id:1,name:"afrina",role:"maintainer"}
-                created_at:issue.created_at,
-                updated_at:issue.updated_at
-            }
-        })
-        return formattedIssues
-    }
-    
+    // userMap = {
+    //               1: {id:1,name:"afrina",role:"maintainer"},
+    //               2: {id:2,name:"swarna2",role:"contributor"},
+    //               3:  {id:3,name:"swarna3",role:"contributor"}
+    //            }
 
-}
+    const formattedIssues = issues.map((issue) => {
+      return {
+        id: issue.id,
+        title: issue.title,
+        description: issue.description,
+        type: issue.type,
+        status: issue.status,
+        //attach the matched reporter object, or null if not found
+        reporter: userMap[issue.reporter_id] || null, // userMap[1] = {id:1,name:"afrina",role:"maintainer"}
+        created_at: issue.created_at,
+        updated_at: issue.updated_at,
+      };
+    });
+    return formattedIssues;
+  }
+};
 const getSingleIssueFromDB = async (id: string) => {
   const issueResult = await pool.query(
     `
@@ -108,71 +110,71 @@ const getSingleIssueFromDB = async (id: string) => {
   );
 
   if (issueResult.rows.length === 0) {
-   throw new Error("Issue not found")
+    throw new Error("Issue not found");
   }
 
-  const issue = issueResult.rows[0]
+  const issue = issueResult.rows[0];
 
-  const reporterId = issue.reporter_id
+  const reporterId = issue.reporter_id;
 
-  const userResult = await pool.query(`
+  const userResult = await pool.query(
+    `
     SELECT id, name, role FROM users WHERE id=$1
     
-    `,[reporterId])
+    `,
+    [reporterId],
+  );
 
-    const reporter = userResult.rows[0] || null
+  const reporter = userResult.rows[0] || null;
 
-    const formattedIssue = {
-        id:issue.id,
-        title:issue.title,
-        description:issue.description,
-        type:issue.type,
-        status:issue.status,
-        reporter:reporter,
-        created_at:issue.created_at,
-        updated_at:issue.updated_at
-    }
+  const formattedIssue = {
+    id: issue.id,
+    title: issue.title,
+    description: issue.description,
+    type: issue.type,
+    status: issue.status,
+    reporter: reporter,
+    created_at: issue.created_at,
+    updated_at: issue.updated_at,
+  };
   return formattedIssue;
 };
 
+const updateIssueIntoDB = async (payLoad: issuePayLoad, id: string, user : JwtPayload ) => {
+  const { title, description, type } = payLoad;
 
-const updateIssueIntoDB = async (payLoad: any, id: string, user :any) => {
-    const { title, description, type } = payLoad;
+  const issueResult = await pool.query(`SELECT * FROM issues WHERE id = $1`, [
+    id,
+  ]);
 
-  
-    const issueResult = await pool.query(
-        `SELECT * FROM issues WHERE id = $1`, 
-        [id]
-    );
-    
-    const issue = issueResult.rows[0];
-    
-    
-    if (!issue) {
-        throw new Error("Issue not found"); 
+  const issue = issueResult.rows[0];
+
+  if (!issue) {
+    throw new Error("Issue not found");
+  }
+
+  const reporterId = issue.reporter_id;
+  const currentStatus = issue.status;
+
+  const isMaintainer = user.role === "maintainer";
+  const isOwner = reporterId === user.id;
+  const isOpen = currentStatus === "open";
+
+  if (isMaintainer || (user.role === "contributor" && isOwner && isOpen)) {
+    let nextStatus = currentStatus;
+    if (isMaintainer) {
+      
+      if (currentStatus === "open") {
+        nextStatus = "in_progress";
+      } else if (currentStatus === "in_progress") {
+        nextStatus = "resolved";
+      } else if (currentStatus === "resolved") {
+        throw new Error("Cannot update an issue that is already resolved");
+      }
     }
 
-    const reporterId = issue.reporter_id;
-    const currentStatus = issue.status;
-
-    
-    const isMaintainer = user.role === 'maintainer';
-    const isOwner = reporterId === user.id; 
-    const isOpen = currentStatus === 'open';
-
-    if (isMaintainer || (user.role === 'contributor' && isOwner && isOpen)) {
-      let nextStatus = currentStatus; 
-
-        if (currentStatus === 'open') {
-            nextStatus = 'in_progress';
-        } else if (currentStatus === 'in_progress') {
-            nextStatus = 'resolved';
-        } else if (currentStatus === 'resolved') {
-            throw new Error("Cannot update an issue that is already resolved");
-        }
-        
-       
-        const result = await pool.query(`
+    const result = await pool.query(
+      `
             UPDATE issues SET
                 title = COALESCE($1, title),
                 description = COALESCE($2, description),
@@ -181,51 +183,46 @@ const updateIssueIntoDB = async (payLoad: any, id: string, user :any) => {
                 updated_at = NOW() 
             WHERE id = $5 
             RETURNING *
-        `, [title, description, type,nextStatus, id]);
+        `,
+      [title, description, type, nextStatus, id],
+    );
 
-       
-        return result
-    } else {
-        throw new Error("Unauthorized to update this issue");
-    }
+    return result;
+  } else {
+    throw new Error("Unauthorized to update this issue");
+  }
 };
 
+const deleteIssueFromDB = async (id: string, user: JwtPayload) => {
+  const issueResult = await pool.query(`SELECT * FROM issues WHERE id = $1`, [
+    id,
+  ]);
 
-const deleteIssueFromDB = async(id:string, user:any)=>{
-  
- const issueResult = await pool.query(
-        `SELECT * FROM issues WHERE id = $1`, 
-        [id]
-    );
-    
-    const issue = issueResult.rows[0];
-    
-    
-    if (!issue) {
-        throw new Error("Issue not found"); 
-    }
- const isMaintainer = user.role === 'maintainer';
+  const issue = issueResult.rows[0];
 
- if(isMaintainer){
-  const result = await pool.query(`
+  if (!issue) {
+    throw new Error("Issue not found");
+  }
+  const isMaintainer = user.role === "maintainer";
+
+  if (isMaintainer) {
+    const result = await pool.query(
+      `
     DELETE FROM issues WHERE id=$1 
     
-    `,[id])
-    return result
- }
- else {
-        throw new Error("Unauthorized to delete this issue");
-    }
-
-
-
-}
-
+    `,
+      [id],
+    );
+    return result;
+  } else {
+    throw new Error("Unauthorized to delete this issue");
+  }
+};
 
 export const issuesService = {
   createIssuesIntoDB,
   getAllIssuesFromDB,
   getSingleIssueFromDB,
   updateIssueIntoDB,
-  deleteIssueFromDB
-}
+  deleteIssueFromDB,
+};

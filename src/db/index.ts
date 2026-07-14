@@ -30,7 +30,9 @@ export const initDB = async () => {
        status VARCHAR(20) DEFAULT 'open' CHECK (status IN ('open', 'in_progress', 'resolved')),
        reporter_id INT  REFERENCES users(id) ON DELETE CASCADE,
        created_at TIMESTAMP DEFAULT NOW(),
-       updated_at TIMESTAMP DEFAULT NOW()
+       updated_at TIMESTAMP DEFAULT NOW(),
+       CONSTRAINT unique_title_per_reporter UNIQUE (title, reporter_id)
+
 
 
       )`)

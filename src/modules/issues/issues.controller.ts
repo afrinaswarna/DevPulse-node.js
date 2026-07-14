@@ -4,7 +4,7 @@ import type { JwtPayload } from "jsonwebtoken";
 
 const createIssues = async (req: Request, res: Response) => {
   const user = req.user;
-  const result = await issuesService.createIssuesIntoDB(req.body, user);
+  const result = await issuesService.createIssuesIntoDB(req.body, user as JwtPayload);
   try {
     res.status(201).json({
       success: true,
@@ -70,7 +70,7 @@ const updateIssue = async (req: Request, res: Response) => {
     const result = await issuesService.updateIssueIntoDB(
       req.body,
       id as string,
-      user,
+      user as JwtPayload
     );
 
     res.status(200).json({
@@ -92,7 +92,7 @@ const deleteIssus = async (req: Request, res: Response) => {
   const user = req.user;
   // console.log(user);
   try {
-    const result = await issuesService.deleteIssueFromDB(id as string, user);
+    const result = await issuesService.deleteIssueFromDB(id as string, user as JwtPayload);
 
     res.status(200).json({
       success: true,
