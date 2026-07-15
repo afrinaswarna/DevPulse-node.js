@@ -113,3 +113,38 @@ To run the server locally with automated change detection:
 ```bash
 npm run dev
 ```
+
+## 📡 API Endpoints Reference
+
+All endpoints are prefixed with `/api`.
+
+### 1. Authentication Routes (`/api/auth`)
+
+| Method | Endpoint | Access Required | Description |
+| :--- | :--- | :--- | :--- |
+| **POST** | `/api/auth/signup` | Public | Register a new user account and set their role (`maintainer` or `contributor`). |
+| **POST** | `/api/auth/login` | Public | Authenticate a user and return a JWT access token for authorization. |
+
+---
+
+### 2. Issue Management Routes (`/api/issues`)
+
+| Method | Endpoint | Access / Role Required | Description |
+| :--- | :--- | :--- | :--- |
+| **GET** | `/api/issues` | All Users | Retrieve all issues. Supports search, filtering, and sorting. |
+| **GET** | `/api/issues/:id` | All Users | Retrieve a specific issue by its ID. |
+| **POST** | `/api/issues` | Contributor / Maintainer | Create a new issue (reporter ID linked to logged-in user). |
+| **PATCH** | `/api/issues/:id` | Contributor (Own Only) / Maintainer (All) | Update general issue details (title, description). |
+| **PATCH** | `/api/issues/:id/status` | **Maintainer Only** | Transition the issue workflow status (e.g., `open` ➔ `in-progress` ➔ `resolved`). |
+| **DELETE**| `/api/issues/:id` | **Maintainer Only** | Permanently delete an issue from the system. |
+
+---
+
+### 🔍 Querying, Filtering & Sorting Examples
+
+The system supports robust query parsing to dynamically search, filter, and sort database results:
+
+* **Filter by Type & Status:**
+  ```http
+  GET /api/issues?type=bug&status=open
+  
