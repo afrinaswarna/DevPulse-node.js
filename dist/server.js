@@ -188,93 +188,8 @@ var router2 = Router2();
 router2.post("/login", loginController.loginUser);
 var loginRoute = router2;
 
-// src/modules/user/user.router.ts
-import { Router as Router3 } from "express";
-
-// src/modules/user/user.service.ts
-var getAllUserFromDB = async () => {
-  const result = await pool.query(`
-    SELECT * FROM users
-    `);
-  delete result.rows[0].password;
-  return result;
-};
-var userService = {
-  getAllUserFromDB
-};
-
-// src/modules/user/user.controller.ts
-var getAllUser = async (req, res) => {
-  try {
-    const result = await userService.getAllUserFromDB();
-    res.status(201).json({
-      success: true,
-      message: "User registered successfully",
-      data: result.rows
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message,
-      error
-    });
-  }
-};
-var userController = {
-  getAllUser
-};
-
-// src/modules/middleware/auth.ts
-import jwt2 from "jsonwebtoken";
-var auth = (...roles) => {
-  return async (req, res, next) => {
-    try {
-      const token = req.headers.authorization;
-      if (!token) {
-        res.status(401).json({
-          success: false,
-          message: "Unauthorized"
-        });
-      }
-      const decodedToken = jwt2.verify(token, config_default.secret);
-      const userDataFromDB = await pool.query(`
-           SELECT * FROM users WHERE email=$1 
-            `, [decodedToken.email]);
-      const user = userDataFromDB.rows[0];
-      if (userDataFromDB.rows.length === 0) {
-        res.status(404).json({
-          success: false,
-          message: "User not found"
-        });
-      }
-      if (roles.length && !roles.includes(user.role)) {
-        res.status(403).json({
-          success: false,
-          message: "Forbidden"
-        });
-      }
-      req.user = decodedToken;
-      next();
-    } catch (error) {
-      next(error);
-    }
-  };
-};
-var auth_default = auth;
-
-// src/types/index.ts
-var USER_ROLE = {
-  contributor: "contributor",
-  maintainer: "maintainer"
-};
-
-// src/modules/user/user.router.ts
-var router3 = Router3();
-router3.get("/", auth_default(USER_ROLE.contributor, USER_ROLE.maintainer), userController.getAllUser);
-var userRoute = router3;
-
 // src/modules/issues/issues.route.ts
-import { Router as Router4 } from "express";
+import { Router as Router3 } from "express";
 
 // src/modules/issues/issues.service.ts
 var createIssuesIntoDB = async (payLoad, user) => {
@@ -574,14 +489,58 @@ var issuesController = {
   deleteIssus
 };
 
+// src/modules/middleware/auth.ts
+import jwt2 from "jsonwebtoken";
+var auth = (...roles) => {
+  return async (req, res, next) => {
+    try {
+      const token = req.headers.authorization;
+      if (!token) {
+        res.status(401).json({
+          success: false,
+          message: "Unauthorized"
+        });
+      }
+      const decodedToken = jwt2.verify(token, config_default.secret);
+      const userDataFromDB = await pool.query(`
+           SELECT * FROM users WHERE email=$1 
+            `, [decodedToken.email]);
+      const user = userDataFromDB.rows[0];
+      if (userDataFromDB.rows.length === 0) {
+        res.status(404).json({
+          success: false,
+          message: "User not found"
+        });
+      }
+      if (roles.length && !roles.includes(user.role)) {
+        res.status(403).json({
+          success: false,
+          message: "Forbidden"
+        });
+      }
+      req.user = decodedToken;
+      next();
+    } catch (error) {
+      next(error);
+    }
+  };
+};
+var auth_default = auth;
+
+// src/types/index.ts
+var USER_ROLE = {
+  contributor: "contributor",
+  maintainer: "maintainer"
+};
+
 // src/modules/issues/issues.route.ts
-var router4 = Router4();
-router4.post("/", auth_default(USER_ROLE.contributor, USER_ROLE.maintainer), issuesController.createIssues);
-router4.get("/", issuesController.getAllIssues);
-router4.get("/:id", issuesController.getSingleIssue);
-router4.patch("/:id", auth_default(USER_ROLE.contributor, USER_ROLE.maintainer), issuesController.updateIssue);
-router4.delete("/:id", auth_default(USER_ROLE.maintainer), issuesController.deleteIssus);
-var issuesRoute = router4;
+var router3 = Router3();
+router3.post("/", auth_default(USER_ROLE.contributor, USER_ROLE.maintainer), issuesController.createIssues);
+router3.get("/", issuesController.getAllIssues);
+router3.get("/:id", issuesController.getSingleIssue);
+router3.patch("/:id", auth_default(USER_ROLE.contributor, USER_ROLE.maintainer), issuesController.updateIssue);
+router3.delete("/:id", auth_default(USER_ROLE.maintainer), issuesController.deleteIssus);
+var issuesRoute = router3;
 
 // src/app.ts
 import cors from "cors";
@@ -603,11 +562,13 @@ var corsOptions = {
 };
 app.use(cors(corsOptions));
 app.get("/", (req, res) => {
-  res.send("Hello World!");
+  res.status(200).json({
+    message: "Express Server",
+    author: "Afrina Swarna"
+  });
 });
 app.use("/api/auth", signupRoute);
 app.use("/api/auth", loginRoute);
-app.use("/api/users", userRoute);
 app.use("/api/issues", issuesRoute);
 app.use(globalErrorHandler_default);
 var app_default = app;
